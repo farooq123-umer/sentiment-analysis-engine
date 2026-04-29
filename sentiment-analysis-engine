@@ -1,0 +1,135 @@
+# Sentiment Analysis Engine
+# Classifies text reviews as positive, negative, or neutral
+# Using Naive Bayes and Logistic Regression
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+import re
+
+nltk.download('stopwords')
+nltk.download('punkt')
+
+
+# ── Step 1: Load dataset ──────────────────────────────────────────────────────
+# Using a sample dataset. Replace with your own CSV if you have one.
+# Expected columns: 'review' (text) and 'sentiment' (positive/negative/neutral)
+
+# For testing I'll create a small sample dataset
+data = {
+    'review': [
+        "This product is amazing, I love it!",
+        "Terrible experience, never buying again.",
+        "It was okay, nothing special.",
+        "Absolutely fantastic quality!",
+        "Very disappointed with the purchase.",
+        "Pretty average, not bad not great.",
+        "Best thing I ever bought!",
+        "Worst product ever, complete waste of money.",
+        "It works fine, does what it says.",
+        "Exceeded my expectations, highly recommend!"
+    ],
+    'sentiment': [
+        'positive', 'negative', 'neutral',
+        'positive', 'negative', 'neutral',
+        'positive', 'negative', 'neutral', 'positive'
+    ]
+}
+
+df = pd.DataFrame(data)
+print("Dataset shape:", df.shape)
+print("\nSentiment distribution:")
+print(df['sentiment'].value_counts())
+
+
+# ── Step 2: Text preprocessing ───────────────────────────────────────────────
+
+def preprocess_text(text):
+    # convert to lowercase
+    text = text.lower()
+    # remove special characters and numbers
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    # tokenize
+    tokens = word_tokenize(text)
+    # remove stopwords
+    stop_words = set(stopwords.words('english'))
+    tokens = [word for word in tokens if word not in stop_words]
+    return ' '.join(tokens)
+
+df['cleaned_review'] = df['review'].apply(preprocess_text)
+print("\nSample cleaned review:")
+print(df[['review', 'cleaned_review']].head(3))
+
+
+# ── Step 3: TF-IDF Vectorization ─────────────────────────────────────────────
+
+vectorizer = TfidfVectorizer(max_features=5000)
+X = vectorizer.fit_transform(df['cleaned_review'])
+y = df['sentiment']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+print("\nTraining samples:", X_train.shape[0])
+print("Test samples:", X_test.shape[0])
+
+
+# ── Step 4: Train models ──────────────────────────────────────────────────────
+
+# Naive Bayes
+nb_model = MultinomialNB()
+nb_model.fit(X_train, y_train)
+nb_predictions = nb_model.predict(X_test)
+nb_accuracy = accuracy_score(y_test, nb_predictions)
+print(f"\nNaive Bayes Accuracy: {nb_accuracy:.2f}")
+
+# Logistic Regression
+lr_model = LogisticRegression(max_iter=1000)
+lr_model.fit(X_train, y_train)
+lr_predictions = lr_model.predict(X_test)
+lr_accuracy = accuracy_score(y_test, lr_predictions)
+print(f"Logistic Regression Accuracy: {lr_accuracy:.2f}")
+
+
+# ── Step 5: Confusion Matrix ──────────────────────────────────────────────────
+
+print("\nClassification Report (Logistic Regression):")
+print(classification_report(y_test, lr_predictions))
+
+cm = confusion_matrix(y_test, lr_predictions, labels=['positive', 'negative', 'neutral'])
+plt.figure(figsize=(6, 4))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=['positive', 'negative', 'neutral'],
+            yticklabels=['positive', 'negative', 'neutral'])
+plt.title('Confusion Matrix - Logistic Regression')
+plt.ylabel('Actual')
+plt.xlabel('Predicted')
+plt.tight_layout()
+plt.savefig('confusion_matrix.png')
+plt.show()
+print("\nConfusion matrix saved as confusion_matrix.png")
+
+
+# ── Step 6: Test with a custom review ────────────────────────────────────────
+
+def predict_sentiment(text):
+    cleaned = preprocess_text(text)
+    vectorized = vectorizer.transform([cleaned])
+    prediction = lr_model.predict(vectorized)
+    return prediction[0]
+
+test_review = "I really enjoyed using this, great value!"
+print(f"\nTest review: '{test_review}'")
+print(f"Predicted sentiment: {predict_sentiment(test_review)}")
